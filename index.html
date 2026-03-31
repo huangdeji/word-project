@@ -26,6 +26,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
+// 与 Supabase 控制台 Authentication → URL Configuration 里的 Site URL 一致（改成你的 GitHub Pages 地址）
+const SITE_URL = "https://huangdeji.github.io/word-project/"
+
 const client = supabase.createClient(
   "https://ucvdvjapgasagvwmfmjk.supabase.co",
   "sb_publishable_vjeaQ-jp5hwF5s1-dCDv2A_MrcqPqRq"
@@ -33,9 +36,20 @@ const client = supabase.createClient(
 
 // 登录
 async function login() {
-  const email = document.getElementById('email').value
-  await client.auth.signInWithOtp({ email })
-  alert("邮件已发送")
+  const email = document.getElementById('email').value.trim()
+  if (!email) {
+    alert("请输入邮箱")
+    return
+  }
+  const { error } = await client.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: SITE_URL }
+  })
+  if (error) {
+    alert("发送失败：" + error.message)
+    return
+  }
+  alert("邮件已发送，请到邮箱点击链接（链接会打开本页并完成登录）")
 }
 
 // 保存
@@ -62,19 +76,26 @@ async function save() {
 
 // 加载列表
 async function load() {
-  const { data } = await client.from('word_jp').select('*')
+  const { data, error } = await client.from('word_jp').select('*')
+  if (error) {
+    console.error(error)
+    return
+  }
 
   const list = document.getElementById('list')
   list.innerHTML = ''
 
-  data.forEach(i => {
+  ;(data || []).forEach(i => {
     const div = document.createElement('div')
     div.innerHTML = `<b>${i.word}</b> - ${i.meaning}<hr>`
     list.appendChild(div)
   })
 }
 
-load()
+// 邮件链接回跳后，会话可能稍晚才就绪；用订阅在登录态变化后再拉列表，避免竞态
+client.auth.onAuthStateChange(() => {
+  load()
+})
 </script>
 
 </body>
