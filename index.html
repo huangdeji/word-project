@@ -24,8 +24,9 @@
 <div id="list"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
-const supabase = supabase.createClient(
+const client = supabase.createClient(
   "https://ucvdvjapgasagvwmfmjk.supabase.co",
   "sb_publishable_vjeaQ-jp5hwF5s1-dCDv2A_MrcqPqRq"
 )
@@ -33,69 +34,16 @@ const supabase = supabase.createClient(
 // 登录
 async function login() {
   const email = document.getElementById('email').value
-  await supabase.auth.signInWithOtp({ email })
+  await client.auth.signInWithOtp({ email })
   alert("邮件已发送")
-}
-
-// 压缩图片（30KB）
-async function compress(file) {
-  return new Promise(resolve => {
-    const img = new Image()
-    const reader = new FileReader()
-
-    reader.onload = e => img.src = e.target.result
-
-    img.onload = () => {
-      let canvas = document.createElement('canvas')
-      let ctx = canvas.getContext('2d')
-
-      let w = img.width
-      let h = img.height
-
-      if (w > 600) {
-        h *= 600 / w
-        w = 600
-      }
-
-      canvas.width = w
-      canvas.height = h
-      ctx.drawImage(img, 0, 0, w, h)
-
-      let q = 0.7
-
-      function loop() {
-        canvas.toBlob(blob => {
-          if (blob.size / 1024 <= 30) {
-            resolve(blob)
-          } else {
-            q -= 0.1
-            if (q <= 0.1) {
-              w *= 0.9
-              h *= 0.9
-              canvas.width = w
-              canvas.height = h
-              ctx.drawImage(img, 0, 0, w, h)
-              q = 0.7
-            }
-            loop()
-          }
-        }, 'image/jpeg', q)
-      }
-
-      loop()
-    }
-
-    reader.readAsDataURL(file)
-  })
 }
 
 // 保存
 async function save() {
   const word = document.getElementById('word').value
   const meaning = document.getElementById('meaning').value
-  const file = document.getElementById('file').files[0]
 
-  const { data: userData } = await supabase.auth.getUser()
+  const { data: userData } = await client.auth.getUser()
   const user = userData.user
 
   if (!user) {
@@ -103,29 +51,10 @@ async function save() {
     return
   }
 
-  let image_url = null
-
-  if (file) {
-    const blob = await compress(file)
-
-    const fileName = Date.now() + ".jpg"
-
-    await supabase.storage
-      .from('images')
-      .upload(fileName, blob)
-
-    const { data } = supabase.storage
-      .from('images')
-      .getPublicUrl(fileName)
-
-    image_url = data.publicUrl
-  }
-
-  await supabase.from('word_jp').insert({
+  await client.from('word_jp').insert({
     user_id: user.id,
     word,
-    meaning,
-    image_url
+    meaning
   })
 
   load()
@@ -133,18 +62,14 @@ async function save() {
 
 // 加载列表
 async function load() {
-  const { data } = await supabase.from('word_jp').select('*')
+  const { data } = await client.from('word_jp').select('*')
 
   const list = document.getElementById('list')
   list.innerHTML = ''
 
   data.forEach(i => {
     const div = document.createElement('div')
-    div.innerHTML = `
-      <b>${i.word}</b> - ${i.meaning}<br>
-      ${i.image_url ? `<img src="${i.image_url}" width="100">` : ''}
-      <hr>
-    `
+    div.innerHTML = `<b>${i.word}</b> - ${i.meaning}<hr>`
     list.appendChild(div)
   })
 }
