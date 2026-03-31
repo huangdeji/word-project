@@ -79,7 +79,16 @@ async function login() {
     options: { emailRedirectTo: SITE_URL }
   })
   if (error) {
-    alert("发送失败：" + error.message)
+    const msg = error.message || ""
+    if (/rate limit|too many|429/i.test(msg)) {
+      alert(
+        "邮件发送太频繁，已触发 Supabase 限制（email rate limit exceeded）。\n\n" +
+          "请过一段时间再试（常见为约 1 小时内限制若干封），调试时不要连续狂点「发送登录链接」。\n\n" +
+          "长期方案：在 Supabase → Project Settings → Auth 里配置自定义 SMTP，或升级套餐以提高限额。"
+      )
+    } else {
+      alert("发送失败：" + msg)
+    }
     return
   }
   alert("邮件已发送，请到邮箱点击链接（链接会打开本页并完成登录）")
