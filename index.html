@@ -3,6 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <title>Word App</title>
+  <!--
+    登录成功前提（Supabase 网页控制台，不是只改本文件）：
+    Authentication → URL Configuration
+      Site URL = https://huangdeji.github.io/word-project/
+      Redirect URLs 须包含（建议两条都加）：
+        https://huangdeji.github.io/word-project
+        https://huangdeji.github.io/word-project/
+    保存后再点「发送登录链接」，用新邮件里的链接打开（旧邮件仍可能是 localhost）。
+  -->
 </head>
 <body>
 
@@ -26,13 +35,37 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-// 与 Supabase 控制台 Authentication → URL Configuration 里的 Site URL 一致（改成你的 GitHub Pages 地址）
+// 线上地址（与 Supabase → Authentication → URL Configuration 中 Site URL、Redirect URLs 保持一致）
 const SITE_URL = "https://huangdeji.github.io/word-project/"
 
 const client = supabase.createClient(
   "https://ucvdvjapgasagvwmfmjk.supabase.co",
-  "sb_publishable_vjeaQ-jp5hwF5s1-dCDv2A_MrcqPqRq"
+  "sb_publishable_vjeaQ-jp5hwF5s1-dCDv2A_MrcqPqRq",
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  }
 )
+
+// 邮件链接若失败，地址会变成 #error=...，这里提示并清掉 hash，避免反复弹窗
+function notifyAuthUrlError() {
+  const raw = window.location.hash.replace(/^#/, "")
+  if (!raw) return
+  const p = new URLSearchParams(raw)
+  if (!p.get("error")) return
+  const desc = decodeURIComponent(p.get("error_description") || p.get("error") || "未知错误")
+  alert(
+    "登录失败：" +
+      desc +
+      "\n\n若邮件链接仍指向 localhost，请到 Supabase → Authentication → URL Configuration，把 Site URL 与 Redirect URLs 设成与页面里 SITE_URL 一致，保存后再重新发一封登录邮件。"
+  )
+  history.replaceState(null, "", window.location.pathname + window.location.search)
+}
+
+notifyAuthUrlError()
 
 // 登录
 async function login() {
