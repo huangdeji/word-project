@@ -1,9 +1,156 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <title>Word App</title>
 </head>
 <body>
-  <h1>成功了！🚀</h1>
+
+<h2>登录</h2>
+<input id="email" placeholder="输入邮箱">
+<button onclick="login()">发送登录链接</button>
+
+<hr>
+
+<h2>添加单词</h2>
+<input id="word" placeholder="单词">
+<input id="meaning" placeholder="意思">
+<input type="file" id="file">
+<button onclick="save()">保存</button>
+
+<hr>
+
+<h2>列表</h2>
+<div id="list"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const supabase = supabase.createClient(
+  "你的SUPABASE_URL",
+  "你的ANON_KEY"
+)
+
+// 登录
+async function login() {
+  const email = document.getElementById('email').value
+  await supabase.auth.signInWithOtp({ email })
+  alert("邮件已发送")
+}
+
+// 压缩图片（30KB）
+async function compress(file) {
+  return new Promise(resolve => {
+    const img = new Image()
+    const reader = new FileReader()
+
+    reader.onload = e => img.src = e.target.result
+
+    img.onload = () => {
+      let canvas = document.createElement('canvas')
+      let ctx = canvas.getContext('2d')
+
+      let w = img.width
+      let h = img.height
+
+      if (w > 600) {
+        h *= 600 / w
+        w = 600
+      }
+
+      canvas.width = w
+      canvas.height = h
+      ctx.drawImage(img, 0, 0, w, h)
+
+      let q = 0.7
+
+      function loop() {
+        canvas.toBlob(blob => {
+          if (blob.size / 1024 <= 30) {
+            resolve(blob)
+          } else {
+            q -= 0.1
+            if (q <= 0.1) {
+              w *= 0.9
+              h *= 0.9
+              canvas.width = w
+              canvas.height = h
+              ctx.drawImage(img, 0, 0, w, h)
+              q = 0.7
+            }
+            loop()
+          }
+        }, 'image/jpeg', q)
+      }
+
+      loop()
+    }
+
+    reader.readAsDataURL(file)
+  })
+}
+
+// 保存
+async function save() {
+  const word = document.getElementById('word').value
+  const meaning = document.getElementById('meaning').value
+  const file = document.getElementById('file').files[0]
+
+  const { data: userData } = await supabase.auth.getUser()
+  const user = userData.user
+
+  if (!user) {
+    alert("请先登录")
+    return
+  }
+
+  let image_url = null
+
+  if (file) {
+    const blob = await compress(file)
+
+    const fileName = Date.now() + ".jpg"
+
+    await supabase.storage
+      .from('images')
+      .upload(fileName, blob)
+
+    const { data } = supabase.storage
+      .from('images')
+      .getPublicUrl(fileName)
+
+    image_url = data.publicUrl
+  }
+
+  await supabase.from('word_jp').insert({
+    user_id: user.id,
+    word,
+    meaning,
+    image_url
+  })
+
+  load()
+}
+
+// 加载列表
+async function load() {
+  const { data } = await supabase.from('word_jp').select('*')
+
+  const list = document.getElementById('list')
+  list.innerHTML = ''
+
+  data.forEach(i => {
+    const div = document.createElement('div')
+    div.innerHTML = `
+      <b>${i.word}</b> - ${i.meaning}<br>
+      ${i.image_url ? `<img src="${i.image_url}" width="100">` : ''}
+      <hr>
+    `
+    list.appendChild(div)
+  })
+}
+
+load()
+</script>
+
 </body>
 </html>
