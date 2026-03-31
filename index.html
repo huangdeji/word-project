@@ -18,6 +18,8 @@
 <h2>登录</h2>
 <input id="email" placeholder="输入邮箱">
 <button onclick="login()">发送登录链接</button>
+<button onclick="checkLogin()">检查登录状态</button>
+<div id="status" style="margin-top:8px;color:#555;"></div>
 
 <hr>
 
@@ -94,33 +96,78 @@ async function login() {
   alert("邮件已发送，请到邮箱点击链接（链接会打开本页并完成登录）")
 }
 
+function setStatus(text, isError = false) {
+  const el = document.getElementById('status')
+  el.style.color = isError ? '#b00020' : '#555'
+  el.textContent = text
+}
+
+async function checkLogin(showAlert = true) {
+  const { data, error } = await client.auth.getUser()
+  if (error) {
+    setStatus("登录状态获取失败：" + error.message, true)
+    if (showAlert) alert("登录状态获取失败：" + error.message)
+    return null
+  }
+  const user = data.user
+  if (!user) {
+    setStatus("未登录")
+    if (showAlert) alert("当前未登录，请先通过邮件链接登录")
+    return null
+  }
+  setStatus("已登录：" + user.email)
+  if (showAlert) alert("已登录：" + user.email)
+  return user
+}
+
 // 保存
 async function save() {
   const word = document.getElementById('word').value
   const meaning = document.getElementById('meaning').value
+  if (!word.trim() || !meaning.trim()) {
+    alert("请先填写单词和意思")
+    return
+  }
 
-  const { data: userData } = await client.auth.getUser()
-  const user = userData.user
-
+  const user = await checkLogin(false)
   if (!user) {
     alert("请先登录")
     return
   }
 
-  await client.from('word_jp').insert({
+  const { error } = await client.from('word_jp').insert({
     user_id: user.id,
-    word,
-    meaning
+    word: word.trim(),
+    meaning: meaning.trim()
   })
+  if (error) {
+    console.error("insert failed:", error)
+    alert("保存失败：" + error.message + "\n请检查表字段和 RLS 策略")
+    return
+  }
 
+  alert("保存成功")
   load()
 }
 
 // 加载列表
 async function load() {
-  const { data, error } = await client.from('word_jp').select('*')
+  const user = await checkLogin(false)
+  if (!user) {
+    const list = document.getElementById('list')
+    list.innerHTML = '<div style="color:#666;">请先登录后查看数据</div>'
+    return
+  }
+
+  const { data, error } = await client
+    .from('word_jp')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('id', { ascending: false })
+
   if (error) {
     console.error(error)
+    alert("加载失败：" + error.message + "\n请检查 RLS 策略是否允许查询")
     return
   }
 
@@ -136,8 +183,11 @@ async function load() {
 
 // 邮件链接回跳后，会话可能稍晚才就绪；用订阅在登录态变化后再拉列表，避免竞态
 client.auth.onAuthStateChange(() => {
+  checkLogin(false)
   load()
 })
+
+checkLogin(false)
 </script>
 
 </body>
